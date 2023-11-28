@@ -1,0 +1,81 @@
+var cloudMaskL457 = function(image) {
+  var qa = image.select('QA_PIXEL');
+  // If the cloud bit (5) is set and the cloud confidence (7) is high 
+  // or the cloud shadow bit is set (3), then it's a bad pixel.
+  var cloud = qa.bitwiseAnd(1 << 5)
+                  .and(qa.bitwiseAnd(1 << 7))
+                  .or(qa.bitwiseAnd(1 << 3));
+  // Remove edge pixels that don't occur in all bands
+  var mask2 = image.mask().reduce(ee.Reducer.min());
+  return image.updateMask(cloud.not()).updateMask(mask2);
+};
+
+var calcularNdvi = function(image){
+        var NDVI = image.normalizedDifference (['B4','B3']).rename('NDVI');
+        return image.addBands(NDVI)
+}
+
+
+
+var K2C = function(image){
+  var calcularC = image.select('B6').multiply(0.00341802).subtract(124.16).rename('C')
+  return image.addBands(calcularC)
+}
+
+
+var datasetl7 = l7.filterDate('1999-10-01','2000-04-30')
+                  .filterBounds(table2)
+                  .select(['SR_B3',"SR_B4","SR_B5","ST_B6",'QA_PIXEL'],['B3',"B4","B5","B6",'QA_PIXEL'])
+                  .map(calcularNdvi)
+                  .map(K2C)
+                  .map(cloudMaskL457);
+                  
+var datasetl5 = l5.filterDate('1999-10-01','2000-04-30')
+                  .filterBounds(table2)
+                  .select(['SR_B3',"SR_B4","SR_B5","ST_B6",'QA_PIXEL'],['B3',"B4","B5","B6",'QA_PIXEL'])
+                  .map(calcularNdvi)
+                  .map(K2C)
+                  .map(cloudMaskL457);
+
+var dataset = datasetl7.merge(datasetl5).select(['NDVI',"C"]).aside(print);
+ 
+var iMedian = dataset.reduce(ee.Reducer.median());
+
+var iMean = dataset.reduce(ee.Reducer.mean());
+
+var iMaxMin = dataset.reduce(ee.Reducer.minMax());
+
+var iStdv = dataset.reduce(ee.Reducer.stdDev());
+
+var iquartil = dataset.reduce(ee.Reducer.percentile([25,75]));
+
+var All = iMedian.addBands(iMean.addBands(iMaxMin.addBands(iStdv.addBands(iquartil)))).aside(print)
+
+var reducedminmax = All.reduceRegions({
+    collection:table2,
+    reducer:ee.Reducer.minMax(), 
+    scale: 30
+  }).aside(print);
+
+var reducedpercent = All.reduceRegions({
+    collection:table2,
+    reducer:ee.Reducer.percentile([25,50,75]), 
+    scale: 30
+  }).aside(print);
+
+var reducedmediana = All.reduceRegions({
+    collection:table2,
+    reducer:ee.Reducer.median(), 
+    scale: 30
+  }).aside(print);
+
+var statistics = reducedmediana.merge(reducedpercent.merge(reducedminmax))
+
+
+Map.addLayer (table2)
+
+
+Export.table.toDrive({
+  collection: statistics,
+  fileFormat: 'csv',
+});
