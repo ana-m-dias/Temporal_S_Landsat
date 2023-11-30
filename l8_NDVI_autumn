@@ -1,0 +1,27 @@
+var calcularNdvi = function(image){
+        var NDVI = image.normalizedDifference (['SR_B5','SR_B4']).rename('NDVI');
+        return image.addBands(NDVI);
+};
+
+var dataset = l8.filterDate('2022-09-23','2022-12-22')
+                .filterBounds(table)
+                .select(['SR_B5',"SR_B4"])
+                .map(calcularNdvi).aside(print);
+
+var LMean = dataset.reduce(ee.Reducer.mean());
+
+var NDVI_Layer = LMean.clip(table);
+
+/*var reducedmediana = LMean.reduceRegions({
+    collection:table,
+    reducer:ee.Reducer.mean(), 
+    scale: 30
+  }).aside(print);*/
+
+Map.addLayer (NDVI_Layer);
+
+
+/*Export.table.toDrive({
+  collection: statistics,
+  fileFormat: 'csv',
+});*/
